@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Daily Timesheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Albert+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
+<style>
+  :root{
+    --ink:#16201c;
+    --cream:#f6f3ec;
+    --card:#fffefb;
+    --accent:#2f7d5b;
+    --accent-dk:#235f45;
+    --line:#e2ddd1;
+    --muted:#6b7670;
+    --err:#b3261e;
+    --warn:#8a6d1f;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100vh;
+    font-family:'Albert Sans',system-ui,sans-serif;
+    color:var(--ink);
+    background:
+      radial-gradient(120% 80% at 0% 0%, #eef4ed 0%, transparent 55%),
+      radial-gradient(120% 80% at 100% 100%, #f0ebe0 0%, transparent 55%),
+      var(--cream);
+    display:flex;justify-content:center;align-items:flex-start;
+    padding:28px 18px 60px;
+  }
+  .wrap{width:100%;max-width:440px;animation:rise .5s cubic-bezier(.2,.7,.3,1) both;}
+  @keyframes rise{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+  header{margin-bottom:22px;}
+  .kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600;}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:30px;line-height:1.1;margin:6px 0 0;}
+  .card{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px;box-shadow:0 1px 0 rgba(0,0,0,.02),0 18px 40px -28px rgba(22,32,28,.35);
+  }
+  label{display:block;font-size:13px;font-weight:600;margin:0 0 6px;}
+  .field{margin-bottom:16px;}
+  input,select,textarea{
+    width:100%;font-family:inherit;font-size:16px;color:var(--ink);
+    background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  input:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,125,91,.15);
+  }
+  textarea{min-height:96px;resize:vertical;}
+  .hint{font-size:12px;color:var(--muted);margin-top:5px;}
+  button{
+    width:100%;font-family:inherit;font-size:16px;font-weight:600;cursor:pointer;
+    border:none;border-radius:10px;padding:13px;transition:background .15s,transform .05s;
+  }
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{background:var(--accent-dk);}
+  .btn-primary:active{transform:translateY(1px);}
+  .btn-primary:disabled{opacity:.55;cursor:default;}
+  .btn-ghost{background:transparent;color:var(--muted);font-weight:500;font-size:13px;padding:8px;margin-top:10px;}
+  .greeting{font-size:14px;color:var(--muted);margin-bottom:18px;}
+  .greeting b{color:var(--ink);}
+  .msg{border-radius:10px;padding:11px 12px;font-size:14px;margin-bottom:16px;display:none;}
+  .msg.show{display:block;}
+  .msg.error{background:#fbeae9;color:var(--err);border:1px solid #f3c9c6;}
+  .msg.warn{background:#fbf3dc;color:var(--warn);border:1px solid #f0e0b0;}
+  .msg.ok{background:#e7f3ec;color:var(--accent-dk);border:1px solid #c2e0cd;}
+  #loginView{text-align:center;padding:8px 0 4px;}
+  #loginView p{color:var(--muted);font-size:14px;margin:0 0 18px;}
+  .hidden{display:none !important;}
+  footer{text-align:center;font-size:11px;color:var(--muted);margin-top:18px;letter-spacing:.04em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Utilities Made Simple</div>
+    <h1>Daily Timesheet</h1>
+  </header>
+
+  <div class="card">
+    <!-- Sign-in view -->
+    <div id="loginView">
+      <p>Sign in with your account to log your hours.</p>
+      <button class="btn-primary" id="loginBtn">Sign in</button>
+    </div>
+
+    <!-- Form view -->
+    <div id="formView" class="hidden">
+      <div class="greeting">Signed in as <b id="userName">…</b></div>
+      <div class="msg" id="message"></div>
+
+      <div class="field">
+        <label for="entryDate">Date</label>
+        <input type="date" id="entryDate" />
+      </div>
+
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status">
+          <option value="Working">Working</option>
+          <option value="Annual Leave">Annual Leave</option>
+          <option value="Bank Holiday">Bank Holiday</option>
+          <option value="Sick">Sick</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="hours">Hours worked</label>
+        <input type="number" id="hours" min="0" max="24" step="0.25" placeholder="e.g. 7.5" />
+      </div>
+
+      <div class="field">
+        <label for="description">What did you do today?</label>
+        <textarea id="description" placeholder="Brief description of the work…"></textarea>
+        <div class="hint">Required when status is “Working”.</div>
+      </div>
+
+      <button class="btn-primary" id="submitBtn">Submit entry</button>
+      <button class="btn-ghost" id="logoutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <footer>Your entry is saved to the company timesheet.</footer>
+</div>
+
+<script>
+/* ----------------------------------------------------------------------
+   CONFIG  — these are your real values; change only if the app moves.
+---------------------------------------------------------------------- */
+const CONFIG = {
+  clientId: "f76b090f-7d46-447b-8545-954d22814232",
+  tenantId: "be344548-8db6-49d6-8155-1f85b6ae1dad",
+  redirectUri: "https://bigwez79.github.io/timesheet/",   // must match the Entra redirect URI exactly (lowercase, trailing slash)
+  siteId: "netorgft7286889.sharepoint.com,e8cbd86e-e98b-46c0-ab5e-ea2805525cd5,74b8ba2d-7746-467d-a85a-e6882f9a11bd",
+  listId: "60e32298-a03a-4a7d-9418-2834b4e7aa49"
+};
+const GRAPH = "https://graph.microsoft.com/v1.0";
+const SCOPES = ["User.Read", "Sites.ReadWrite.All"];
+
+/* ----------------------------------------------------------------------
+   MSAL setup
+---------------------------------------------------------------------- */
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: "https://login.microsoftonline.com/" + CONFIG.tenantId,
+    redirectUri: CONFIG.redirectUri
+  },
+  cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+};
+
+let msalInstance;
+let account = null;
+
+const els = {
+  loginView: document.getElementById("loginView"),
+  formView: document.getElementById("formView"),
+  loginBtn: document.getElementById("loginBtn"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  submitBtn: document.getElementById("submitBtn"),
+  userName: document.getElementById("userName"),
+  entryDate: document.getElementById("entryDate"),
+  status: document.getElementById("status"),
+  hours: document.getElementById("hours"),
+  description: document.getElementById("description"),
+  message: document.getElementById("message")
+};
+
+function showMsg(text, type){
+  els.message.textContent = text;
+  els.message.className = "msg show " + type;
+}
+function clearMsg(){ els.message.className = "msg"; }
+
+function todayISO(){
+  const d = new Date();
+  const off = d.getTimezoneOffset();
+  return new Date(d.getTime() - off*60000).toISOString().slice(0,10);
+}
+
+function showForm(){
+  els.loginView.classList.add("hidden");
+  els.formView.classList.remove("hidden");
+  els.userName.textContent = account.name || account.username;
+  els.entryDate.value = todayISO();
+}
+function showLogin(){
+  els.formView.classList.add("hidden");
+  els.loginView.classList.remove("hidden");
+}
+
+async function init(){
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  await msalInstance.initialize();
+  try {
+    const resp = await msalInstance.handleRedirectPromise();
+    if (resp && resp.account) account = resp.account;
+  } catch(e){ console.error("Redirect handling error", e); }
+
+  if (!account){
+    const accts = msalInstance.getAllAccounts();
+    if (accts.length) account = accts[0];
+  }
+  if (account) showForm(); else showLogin();
+}
+
+els.loginBtn.onclick = () => {
+  msalInstance.loginRedirect({ scopes: SCOPES });
+};
+els.logoutBtn.onclick = () => {
+  msalInstance.logoutRedirect({ account });
+};
+
+async function getToken(){
+  try {
+    const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    return r.accessToken;
+  } catch(e){
+    // needs interaction → redirect to sign in again
+    await msalInstance.acquireTokenRedirect({ scopes: SCOPES });
+    throw e;
+  }
+}
+
+/* Check whether this user already has an entry for the chosen date. */
+async function alreadyLogged(token, email, dateStr){
+  try {
+    const url = GRAPH + "/sites/" + CONFIG.siteId + "/lists/" + CONFIG.listId +
+      "/items?$expand=fields($select=EntryDate,StaffEmail)&$filter=fields/StaffEmail eq '" +
+      email.replace(/'/g,"''") + "'";
+    const res = await fetch(url, {
+      headers: { Authorization: "Bearer " + token, Prefer: "HonorNonIndexedQueriesWarningMayFailRandomly" }
+    });
+    if (!res.ok) return false; // don't block on a failed check
+    const data = await res.json();
+    return (data.value || []).some(it => (it.fields?.EntryDate || "").slice(0,10) === dateStr);
+  } catch(e){ console.warn("Dedupe check skipped", e); return false; }
+}
+
+async function submit(){
+  clearMsg();
+  const dateStr = els.entryDate.value;
+  const status = els.status.value;
+  const hoursRaw = els.hours.value.trim();
+  const hours = parseFloat(hoursRaw);
+  const desc = els.description.value.trim();
+
+  // ---- validation ----
+  if (!dateStr){ showMsg("Please choose a date.", "error"); return; }
+  if (hoursRaw === "" || isNaN(hours) || hours < 0 || hours > 24){
+    showMsg("Hours must be a number between 0 and 24.", "error"); return;
+  }
+  if (status === "Working" && !desc){
+    showMsg("Please describe the work you did.", "error"); return;
+  }
+
+  els.submitBtn.disabled = true;
+  els.submitBtn.textContent = "Saving…";
+
+  try {
+    const token = await getToken();
+    const email = account.username;
+
+    if (await alreadyLogged(token, email, dateStr)){
+      showMsg("You've already logged " + dateStr + ". Speak to admin if it needs changing.", "warn");
+      return;
+    }
+
+    const body = { fields: {
+      Title: email + " - " + dateStr,
+      EntryDate: dateStr,
+      StaffName: account.name || email,
+      StaffEmail: email,
+      HoursWorked: hours,
+      WorkStatus: status,
+      WorkDescription: desc,
+      SubmittedOn: new Date().toISOString()
+    }};
+
+    const res = await fetch(GRAPH + "/sites/" + CONFIG.siteId + "/lists/" + CONFIG.listId + "/items", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok){
+      const err = await res.text();
+      console.error(err);
+      showMsg("Couldn't save (" + res.status + "). Please try again or contact admin.", "error");
+      return;
+    }
+
+    showMsg("Saved — thanks! Entry logged for " + dateStr + ".", "ok");
+    els.hours.value = "";
+    els.description.value = "";
+    els.status.value = "Working";
+  } catch(e){
+    console.error(e);
+    showMsg("Something went wrong. Please try again.", "error");
+  } finally {
+    els.submitBtn.disabled = false;
+    els.submitBtn.textContent = "Submit entry";
+  }
+}
+
+els.submitBtn.onclick = submit;
+init();
+</script>
+</body>
+</html>
